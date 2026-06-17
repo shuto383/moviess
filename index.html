@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>カットルーム — 動画編集</title>
+<style>
+  :root {
+    --bg: #14151a;
+    --panel: #1c1e26;
+    --panel-light: #262934;
+    --line: #34384a;
+    --text: #eef0f5;
+    --text-dim: #8b90a3;
+    --accent: #ff5d3b;
+    --accent-soft: rgba(255, 93, 59, 0.16);
+    --ok: #4fd1a5;
+    --font-display: "Zen Kaku Gothic New", "Hiragino Sans", sans-serif;
+    --font-body: "Hiragino Sans", "Noto Sans JP", sans-serif;
+    --font-mono: "JetBrains Mono", "SF Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    overflow: hidden;
+  }
+
+  /* ===== レイアウト ===== */
+  .app {
+    display: grid;
+    grid-template-rows: 56px 1fr 90px 220px;
+    grid-template-columns: 1fr 280px;
+    height: 100vh;
+  }
+
+  header {
+    grid-column: 1 / 3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+
+  .logo {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 18px;
+    letter-spacing: 0.04em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .logo .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); display: inline-block; }
+
+  .header-actions { display: flex; gap: 10px; align-items: center; }
+
+  /* ===== プレビュー領域 ===== */
+  .stage {
+    grid-row: 2;
+    grid-column: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #0b0c10;
+    position: relative;
+    padding: 20px;
+    overflow: hidden;
+  }
+
+  .stage video, .stage canvas {
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 6px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    background: #000;
+  }
+
+  /* 動画とテキストオーバーレイをまとめて拡大表示できるコンテナ */
+  .video-frame {
+    position: relative;
+    display: inline-flex;
+    max-width: 100%;
+    max-height: 100%;
+    line-height: 0;
+  }
+  .video-frame video {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 6px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    background: #000;
+  }
+  .video-frame:fullscreen {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+  }
+  .video-frame:fullscreen video {
+    max-width: 100vw;
+    max-height: 100vh;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .fullscreen-btn {
+    position: absolute;
+    top: 10px; right: 10px;
+    width: 32px; height: 32px;
+    border-radius: 6px;
+    border: none;
+    background: rgba(0,0,0,0.5);
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    opacity: 0;
+    transition: opacity .15s, background .15s;
+  }
+  .video-frame:hover .fullscreen-btn,
+  .video-frame:fullscreen .fullscreen-btn {
+    opacity: 1;
+  }
+  .fullscreen-btn:hover { background: var(--accent); }
+
+  .empty-state {
+    text-align: center;
+    color: var(--text-dim);
+    max-width: 360px;
+  }
+  .empty-state h2 {
+    font-family: var(--font-display);
+    color: var(--text);
+    font-size: 22px;
+    margin-bottom: 8px;
+  }
+  .drop-zone {
+    border: 2px dashed var(--line);
+    border-radius: 10px;
+    padding: 36px 24px;
+    margin-top: 18px;
+    transition: border-color .2s, background .2s;
+    cursor: pointer;
+  }
+  .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .drop-zone .icon { font-size: 32px; display: block; margin-bottom: 8px; }
+
+  /* ===== 右パネル: プロパティ ===== */
+  .panel {
+    grid-row: 2;
+    grid-column: 2;
+    background: var(--panel);
+    border-left: 1px solid var(--line);
+    overflow-y: auto;
+    padding: 16px;
+  }
+
+  .panel h3 {
+    font-family: var(--font-display);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-dim);
+    margin: 18px 0 10px;
+  }
+  .panel h3:first-child { margin-top: 0; }
+
+  .tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  .tool-btn {
+    background: var(--panel-light);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 12px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    transition: border-color .15s, background .15s;
+  }
+  .tool-btn:hover { border-color: var(--accent); }
+  .tool-btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .tool-btn .ic { font-size: 18px; }
+  .tool-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .field { margin-bottom: 12px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  .field input[type="range"] { width: 100%; accent-color: var(--accent); }
+  .field input[type="text"], .field select, .field input[type="number"] {
+    width: 100%;
+    background: var(--panel-light);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: var(--font-body);
+  }
+  .field-row { display: flex; gap: 8px; }
+  .field-row .field { flex: 1; }
+  .value-pill {
+    display: inline-block;
+    background: var(--panel-light);
+    border-radius: 4px;
+    padding: 1px 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    margin-left: 6px;
+  }
+
+  /* ===== ボタン共通 ===== */
+  .btn {
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font-body);
+    transition: opacity .15s, transform .1s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--line); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--text-dim); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-block { width: 100%; }
+
+  /* ===== クリップリスト ===== */
+  .clip-strip {
+    grid-row: 3;
+    grid-column: 1 / 3;
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    overflow-x: auto;
+  }
+  .clip-item {
+    flex: 0 0 auto;
+    width: 96px;
+    border-radius: 8px;
+    border: 2px solid var(--line);
+    background: var(--panel-light);
+    cursor: pointer;
+    overflow: hidden;
+    position: relative;
+    transition: border-color .15s;
+  }
+  .clip-item.active { border-color: var(--accent); }
+  .clip-item img {
+    width: 100%;
+    height: 54px;
+    object-fit: cover;
+    display: block;
+    opacity: 0.85;
+  }
+  .clip-item .clip-label {
+    font-size: 10px;
+    padding: 4px 6px;
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .clip-item .clip-num {
+    position: absolute;
+    top: 4px; left: 4px;
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    font-size: 10px;
+    font-family: var(--font-mono);
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  .clip-item .clip-remove {
+    position: absolute;
+    top: 4px; right: 4px;
+    background: rgba(0,0,0,0.6);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    width: 18px; height: 18px;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1;
+  }
+  .clip-item .clip-remove:hover { background: var(--accent); }
+  .clip-item[draggable="true"]:active { opacity: 0.6; }
+  .clip-item.drag-over-target { border-color: var(--ok); }
+
+  .clip-add {
+    flex: 0 0 auto;
+    width: 96px;
+    height: 78px;
+    border-radius: 8px;
+    border: 2px dashed var(--line);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    font-size: 11px;
+    transition: border-color .15s, color .15s;
+  }
+  .clip-add:hover { border-color: var(--accent); color: var(--accent); }
+  .clip-add .ic { font-size: 18px; }
+
+  /* ===== タイムライン ===== */
+  .timeline-wrap {
+    grid-row: 4;
+    grid-column: 1 / 3;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .transport {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .transport .time {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-dim);
+    min-width: 110px;
+  }
+  .transport .time strong { color: var(--text); }
+
+  .play-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .timeline-scroll {
+    flex: 1;
+    position: relative;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 14px 16px;
+  }
+
+  .timeline-track {
+    position: relative;
+    height: 90px;
+    background: var(--panel-light);
+    border-radius: 8px;
+    min-width: 600px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+
+  .thumb-strip {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    pointer-events: none;
+  }
+  .thumb-strip img {
+    height: 100%;
+    flex: 1;
+    object-fit: cover;
+    opacity: 0.55;
+  }
+
+  /* トリム範囲ハンドル */
+  .trim-region {
+    position: absolute;
+    top: 0; bottom: 0;
+    background: rgba(255, 93, 59, 0.12);
+    border-left: 3px solid var(--accent);
+    border-right: 3px solid var(--accent);
+    z-index: 2;
+  }
+  .trim-handle {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 14px;
+    cursor: ew-resize;
+    z-index: 3;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .trim-handle.left { left: -7px; }
+  .trim-handle.right { right: -7px; }
+  .trim-handle::after {
+    content: "";
+    width: 4px; height: 36px;
+    background: var(--accent);
+    border-radius: 3px;
+  }
+
+  /* 字幕区間のドラッグ選択オーバーレイ */
+  .range-select {
+    position: absolute;
+    top: 0; bottom: 0;
+    background: rgba(255, 255, 255, 0.18);
+    border-left: 2px dashed #fff;
+    border-right: 2px dashed #fff;
+    z-index: 6;
+    pointer-events: none;
+  }
+
+  /* マーカー (テキスト/速度区間) */
+  .marker {
+    position: absolute;
+    top: 6px;
+    height: 14px;
+    background: var(--ok);
+    border-radius: 4px;
+    opacity: 0.85;
+    z-index: 1;
+    font-size: 9px;
+    color: #07261c;
+    display: flex; align-items: center; padding: 0 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: opacity .12s, border-color .12s;
+  }
+  .marker:hover { opacity: 1; }
+  .marker.marker-selected {
+    border-color: #fff;
+    opacity: 1;
+    z-index: 5;
+  }
+  .marker.marker-speed {
+    top: 24px;
+    background: #8b8cf8;
+    color: #1b1b3a;
+  }
+  .marker.marker-text {
+    top: 6px;
+  }
+
+  /* トランスポートの微調整シーク */
+  .seek-step {
+    background: var(--panel-light);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 9px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+  }
+  .seek-step:hover { border-color: var(--accent); }
+
+  /* テキスト/速度 編集モードの行 */
+  .edit-mode-banner {
+    background: var(--accent-soft);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .edit-mode-banner button {
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 11px;
+    text-decoration: underline;
+  }
+  .field-with-btn {
+    display: flex;
+    gap: 6px;
+  }
+  .field-with-btn input { flex: 1; }
+  .mini-btn {
+    background: var(--panel-light);
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+    border-radius: 6px;
+    padding: 0 8px;
+    font-size: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .mini-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-row .btn { flex: 1; }
+  .btn-danger { background: transparent; color: #ff6b6b; border: 1px solid #ff6b6b; }
+  .btn-danger:hover { background: rgba(255,107,107,0.12); }
+
+  /* 再生ヘッド */
+  .playhead {
+    position: absolute;
+    top: -4px; bottom: 0;
+    width: 2px;
+    background: #fff;
+    z-index: 4;
+    pointer-events: none;
+  }
+  .playhead::before {
+    content: "";
+    position: absolute;
+    top: -4px; left: -5px;
+    width: 12px; height: 8px;
+    background: #fff;
+    border-radius: 2px;
+  }
+
+  .ruler {
+    height: 18px;
+    position: relative;
+    margin-bottom: 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    min-width: 600px;
+  }
+  .ruler span {
+    position: absolute;
+    transform: translateX(-50%);
+  }
+
+  /* ===== ログ / 進捗 ===== */
+  .progress-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(11, 12, 16, 0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    border-radius: 6px;
+    z-index: 10;
+  }
+  .progress-overlay.hidden { display: none; }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--line);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .progress-label { font-size: 13px; color: var(--text-dim); font-family: var(--font-mono); }
+
+  /* スクロールバー */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* テキストオーバーレイ用入力 */
+  .text-overlay-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .overlay-chip {
+    background: var(--panel-light);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    transition: border-color .12s, background .12s;
+  }
+  .overlay-chip.active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .overlay-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .overlay-chip button {
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; font-size: 14px; padding: 0;
+  }
+  .overlay-chip button:hover { color: var(--accent); }
+
+  .field-with-btn input[type="color"] {
+    flex: 0 0 40px;
+    width: 40px;
+    padding: 2px;
+    height: 34px;
+    cursor: pointer;
+  }
+  .color-palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .color-swatch {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    cursor: pointer;
+    padding: 0;
+  }
+  .color-swatch:hover { border-color: var(--accent); transform: scale(1.1); }
+
+  .hint { font-size: 11px; color: var(--text-dim); line-height: 1.5; margin-top: 6px; }
+
+  a.download-link {
+    display: block;
+    text-align: center;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--ok);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="logo"><span class="dot"></span>カットルーム</div>
+    <div class="header-actions">
+      <button class="btn btn-ghost" id="newFileBtn">プロジェクトをリセット</button>
+      <button class="btn btn-primary" id="exportBtn" disabled>書き出してダウンロード</button>
+    </div>
+  </header>
+
+  <div class="stage" id="stage">
+    <div class="empty-state" id="emptyState">
+      <h2>動画をアップロードして編集を始める</h2>
+      <p>トリミング、テキスト挿入、明るさ・速度調整などをブラウザ上だけで行えます。すべての処理はあなたのデバイス内で完結し、サーバーへアップロードされません。</p>
+      <div class="drop-zone" id="dropZone">
+        <span class="icon">📹</span>
+        ここに動画ファイルをドラッグ、またはクリックして選択<br>
+        <span style="font-size:11px;">複数選択で結合できます（mp4, mov, webm など）</span>
+      </div>
+      <input type="file" id="fileInput" accept="video/*" multiple hidden />
+    </div>
+    <div class="video-frame" id="videoFrame" hidden>
+      <video id="previewVideo" controls></video>
+      <button class="fullscreen-btn" id="fullscreenBtn" title="拡大表示">⤢</button>
+    </div>
+    <div class="progress-overlay hidden" id="progressOverlay">
+      <div class="spinner"></div>
+      <div class="progress-label" id="progressLabel">準備中…</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>編集ツール</h3>
+    <div class="tool-grid">
+      <button class="tool-btn" data-tool="trim" disabled>
+        <span class="ic">✂️</span>トリミング
+      </button>
+      <button class="tool-btn" data-tool="text" disabled>
+        <span class="ic">🔤</span>テキスト
+      </button>
+      <button class="tool-btn" data-tool="speed" disabled>
+        <span class="ic">⏩</span>速度
+      </button>
+      <button class="tool-btn" data-tool="adjust" disabled>
+        <span class="ic">🎛️</span>色調整
+      </button>
+      <button class="tool-btn" data-tool="volume" disabled>
+        <span class="ic">🔊</span>音量
+      </button>
+      <button class="tool-btn" data-tool="rotate" disabled>
+        <span class="ic">🔄</span>回転
+      </button>
+    </div>
+
+    <div id="toolOptions"></div>
+
+    <div id="exportInfo" class="hint" style="margin-top:16px;"></div>
+  </div>
+
+  <div class="clip-strip" id="clipStrip">
+    <!-- クリップサムネイルがここに追加されます -->
+  </div>
+
+  <div class="timeline-wrap">
+    <div class="transport">
+      <button class="play-btn" id="playBtn">▶</button>
+      <button class="seek-step" id="stepBack" title="0.1秒戻る">◀ 0.1s</button>
+      <button class="seek-step" id="stepForward" title="0.1秒進む">0.1s ▶</button>
+      <div class="time"><strong id="curTime">00:00.0</strong> / <span id="totalTime">00:00.0</span></div>
+      <div style="font-size:11px;color:var(--text-dim);">タイムラインのオレンジの枠をドラッグしてトリミング範囲を調整／マーカーをクリックして編集</div>
+    </div>
+    <div class="timeline-scroll" id="timelineScroll">
+      <div class="ruler" id="ruler"></div>
+      <div class="timeline-track" id="timelineTrack">
+        <div class="thumb-strip" id="thumbStrip"></div>
+        <div class="trim-region" id="trimRegion">
+          <div class="trim-handle left" id="handleLeft"></div>
+          <div class="trim-handle right" id="handleRight"></div>
+        </div>
+        <div class="range-select" id="rangeSelect" hidden></div>
+        <div class="playhead" id="playhead" style="left:0;"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<input type="file" id="addClipInput" accept="video/*" multiple hidden />
+
+<script src="vendor/ffmpeg/ffmpeg.js"></script>
+<script src="vendor/util/ffmpeg-util.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
