@@ -65,13 +65,18 @@ const stepFwd      = $('stepFwd');
 const toolButtons  = document.querySelectorAll('.tool-btn');
 
 // ── ファイル読み込み ─────────────────────────────────────────
+// uploadBtn と dropZone のクリックイベントを完全に分離
+// uploadBtn は直接 fileInput.click() を呼ぶ
+// dropZone は uploadBtn/fileInput 以外の部分がクリックされたとき fileInput.click()
 uploadBtn.addEventListener('click', e => {
-  e.stopPropagation(); // dropZoneのclickハンドラが二重発火しないよう止める
+  e.preventDefault();
+  e.stopPropagation();
   fileInput.click();
 });
-// ドロップゾーン全体のクリック（ボタン以外の部分）
+
 dropZone.addEventListener('click', e => {
-  if (e.target === uploadBtn || uploadBtn.contains(e.target)) return;
+  // uploadBtn(またはその子)がクリック元なら dropZone 側は何もしない
+  if (uploadBtn.contains(e.target) || e.target === uploadBtn) return;
   fileInput.click();
 });
 
@@ -85,13 +90,13 @@ dropZone.addEventListener('drop', e => {
 });
 fileInput.addEventListener('change', e => {
   const fs = [...e.target.files];
+  fileInput.value = ''; // 先にリセット（同じファイルを再選択できるように）
   if (fs.length) addClips(fs, true);
-  fileInput.value = '';
 });
 addClipInput.addEventListener('change', e => {
   const fs = [...e.target.files];
-  if (fs.length) addClips(fs, false);
   addClipInput.value = '';
+  if (fs.length) addClips(fs, false);
 });
 
 newFileBtn.addEventListener('click', resetProject);
@@ -103,6 +108,9 @@ function resetProject() {
   videoEl.removeAttribute('src');
   videoFrame.hidden = true;
   emptyState.hidden = false;
+  // stage を初期画面モード（スクロール可能）に戻す
+  const stageEl = document.getElementById('stage');
+  stageEl.classList.add('welcome-mode');
   exportBtn.disabled = true;
   toolButtons.forEach(b => (b.disabled = true));
   activeTool = null;
@@ -114,16 +122,20 @@ function resetProject() {
   totalTimeEl.textContent = '00:00.0';
   ruler.innerHTML = '';
   thumbStrip.innerHTML = '';
+  // 既存オーバーレイ要素の削除
+  Object.keys(overlayEls).forEach(k => {
+    overlayEls[k].remove();
+    delete overlayEls[k];
+  });
 }
 
 async function addClips(files, isFirst) {
   if (isFirst) {
     clips = []; activeClipIdx = -1;
-    emptyState.hidden = true;
-    videoFrame.hidden = false;
-    exportBtn.disabled = false;
-    toolButtons.forEach(b => (b.disabled = false));
   }
+
+  // まず全ファイルのメタデータを取得してから表示する（0秒クリップを防ぐ）
+  const newClips = [];
   for (const file of files) {
     const clip = {
       id: crypto.randomUUID?.() ?? String(Math.random()),
@@ -131,10 +143,31 @@ async function addClips(files, isFirst) {
       duration: 0, thumbnails: [],
       state: mkState()
     };
-    clips.push(clip);
     await loadClipMeta(clip);
-    renderClipStrip();
+    // 有効なクリップ（duration > 0）のみ追加
+    if (clip.duration > 0 && isFinite(clip.duration)) {
+      newClips.push(clip);
+    } else {
+      URL.revokeObjectURL(clip.url);
+    }
   }
+
+  if (!newClips.length) return; // 有効なクリップがなければ何もしない
+
+  clips.push(...newClips);
+
+  // UIを表示状態に切り替え（初回 or 追加）
+  if (emptyState.hidden === false) {
+    emptyState.hidden = true;
+    videoFrame.hidden = false;
+    exportBtn.disabled = false;
+    toolButtons.forEach(b => (b.disabled = false));
+    // stage を動画モードに切り替え（overflow:hidden）
+    const stageEl = document.getElementById('stage');
+    stageEl.classList.remove('welcome-mode');
+  }
+
+  renderClipStrip();
   if (activeClipIdx === -1 && clips.length) selectClip(0);
   else renderClipStrip();
 }
@@ -142,35 +175,30 @@ async function addClips(files, isFirst) {
 function loadClipMeta(clip) {
   return new Promise(resolve => {
     const v = document.createElement('video');
-    v.src = clip.url; v.muted = true;
+    v.preload = 'metadata';
+    v.muted = true;
     let done = false;
+
     const finish = async () => {
       if (done) return;
       done = true;
-      if (!clip.duration || !isFinite(clip.duration) || clip.duration <= 0) {
-        // 無効なクリップを除外
-        const idx = clips.indexOf(clip);
-        if (idx !== -1) clips.splice(idx, 1);
-        URL.revokeObjectURL(clip.url);
-        resolve();
-        return;
+      clip.duration = v.duration;
+      if (clip.duration > 0 && isFinite(clip.duration)) {
+        clip.state.trimStart = 0;
+        clip.state.trimEnd   = clip.duration;
+        await genThumbs(clip, v);
       }
-      clip.state.trimStart = 0;
-      clip.state.trimEnd   = clip.duration;
-      await genThumbs(clip, v);
       resolve();
     };
-    v.addEventListener('loadedmetadata', () => {
-      clip.duration = v.duration;
-      finish();
-    }, { once: true });
+
+    v.addEventListener('loadedmetadata', finish, { once: true });
     v.addEventListener('error', () => {
-      const idx = clips.indexOf(clip);
-      if (idx !== -1) clips.splice(idx, 1);
-      resolve();
+      if (!done) { done = true; resolve(); }
     }, { once: true });
+
     // 10秒タイムアウト
     setTimeout(() => { if (!done) { done = true; resolve(); } }, 10000);
+    v.src = clip.url; // src は last（イベント登録後）
   });
 }
 

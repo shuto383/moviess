@@ -13,7 +13,7 @@
     --text: #e8eaf2;
     --dim: #737a9a;
     --accent: #ff5c38;
-    --accent-a: rgba(255,92,56,.16);
+    --accent-a: rgba(255,92,56,.15);
     --ok: #3fd4a0;
     --purple: #8b8cf8;
     --r: 8px;
@@ -21,14 +21,23 @@
     --mono: "SF Mono","JetBrains Mono",monospace;
   }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--ff); overflow: hidden; }
 
-  /* ── レイアウト ── */
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--ff);
+    /* bodyはスクロール禁止。スクロールは各子要素で管理 */
+    overflow: hidden;
+  }
+
+  /* ── メインレイアウト ── */
   .app {
     display: grid;
-    grid-template-rows: 54px 1fr 88px 200px;
+    grid-template-rows: 54px 1fr 80px 190px;
     grid-template-columns: 1fr 272px;
     height: 100vh;
+    min-height: 0;
   }
 
   /* ── ヘッダー ── */
@@ -39,72 +48,97 @@
     background: var(--panel);
     border-bottom: 1px solid var(--line);
     gap: 12px;
+    z-index: 10;
   }
   .logo {
-    font-weight: 800; font-size: 17px; letter-spacing: .04em;
-    display: flex; align-items: center; gap: 9px;
-    white-space: nowrap;
+    font-weight: 800; font-size: 16px; letter-spacing: .04em;
+    display: flex; align-items: center; gap: 9px; white-space: nowrap;
   }
   .logo-dot {
     width: 9px; height: 9px; border-radius: 50%;
     background: var(--accent); flex-shrink: 0;
     box-shadow: 0 0 8px var(--accent);
   }
-  .logo-sub { font-size: 11px; font-weight: 400; color: var(--dim); margin-top: 1px; }
+  .logo-sub { font-size: 10px; font-weight: 400; color: var(--dim); margin-top: 1px; }
   .hdr-right { display: flex; gap: 8px; align-items: center; }
 
-  /* ── ステージ ── */
+  /* ── ステージ（動画プレビューエリア） ── */
   .stage {
     grid-row: 2; grid-column: 1;
     display: flex; align-items: center; justify-content: center;
     background: #080910;
     position: relative;
-    overflow: hidden;
+    overflow: hidden; /* 動画表示時はclip */
+    min-height: 0;
+  }
+  /* 初期画面表示時はスクロール許可 */
+  .stage.welcome-mode {
+    overflow-y: auto;
+    overflow-x: hidden;
+    align-items: flex-start;
   }
 
   /* ── 初期画面 ── */
   .welcome {
     display: flex; flex-direction: column; align-items: center;
-    gap: 28px; text-align: center; padding: 20px;
-    max-width: 520px; width: 100%;
+    gap: 24px; text-align: center;
+    padding: 32px 24px 40px;
+    max-width: 500px; width: 100%;
+    margin: auto; /* スクロール時に上下中央寄せ */
   }
   .welcome-icon {
-    width: 72px; height: 72px; border-radius: 20px;
+    width: 68px; height: 68px; border-radius: 18px;
     background: linear-gradient(135deg,#ff5c38 0%,#ff9560 100%);
     display: flex; align-items: center; justify-content: center;
-    font-size: 32px;
-    box-shadow: 0 12px 40px rgba(255,92,56,.35);
+    box-shadow: 0 12px 36px rgba(255,92,56,.35);
+    flex-shrink: 0;
   }
-  .welcome h1 { font-size: 22px; font-weight: 700; line-height: 1.35; }
-  .welcome-desc { font-size: 13px; color: var(--dim); line-height: 1.7; }
+  .welcome h1 { font-size: 20px; font-weight: 700; line-height: 1.4; }
+  .welcome-desc { font-size: 12px; color: var(--dim); line-height: 1.75; }
   .welcome-desc strong { color: var(--ok); font-weight: 600; }
 
+  /* ドロップゾーン — クリックは zone 全体でもボタンでも動く */
   .drop-zone {
     width: 100%;
     border: 2px dashed var(--line);
     border-radius: 14px;
     padding: 28px 20px;
-    cursor: pointer;
     transition: border-color .2s, background .2s;
-    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    cursor: pointer;
   }
-  .drop-zone:hover, .drop-zone.over { border-color: var(--accent); background: var(--accent-a); }
-  .drop-zone-ico { font-size: 28px; }
+  .drop-zone:hover, .drop-zone.over {
+    border-color: var(--accent); background: var(--accent-a);
+  }
+  .drop-zone-ico { font-size: 32px; line-height: 1; }
   .drop-zone-title { font-size: 14px; font-weight: 600; }
   .drop-zone-sub { font-size: 11px; color: var(--dim); }
-  .dz-or { display: flex; align-items: center; gap: 10px; width: 100%; color: var(--dim); font-size: 12px; }
-  .dz-or::before, .dz-or::after { content:""; flex:1; height:1px; background: var(--line); }
+
+  /* ファイル選択ボタン — zone の中にあるが pointer-events だけ独立 */
+  .upload-btn {
+    margin-top: 2px;
+    padding: 10px 28px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: var(--r);
+    font-size: 13px; font-weight: 700;
+    font-family: var(--ff);
+    cursor: pointer;
+    transition: background .15s, transform .1s;
+    pointer-events: auto; /* zone のクリックとは別に機能 */
+  }
+  .upload-btn:hover { background: #ff7050; }
+  .upload-btn:active { transform: scale(.97); }
 
   .feature-grid {
     display: grid; grid-template-columns: 1fr 1fr 1fr;
-    gap: 10px; width: 100%;
+    gap: 8px; width: 100%;
   }
   .feature-card {
     background: var(--panel); border: 1px solid var(--line);
-    border-radius: 10px; padding: 14px 10px;
-    font-size: 11px; color: var(--dim); text-align: center;
+    border-radius: 10px; padding: 12px 8px;
+    font-size: 10px; color: var(--dim); text-align: center;
     line-height: 1.5; display: flex; flex-direction: column;
-    align-items: center; gap: 7px;
+    align-items: center; gap: 6px;
     transition: border-color .15s, color .15s;
   }
   .feature-card:hover { border-color: var(--accent); color: var(--text); }
@@ -114,8 +148,7 @@
   /* ── 動画フレーム ── */
   .video-frame {
     position: relative; display: inline-flex;
-    max-width: 100%; max-height: 100%;
-    line-height: 0;
+    max-width: 100%; max-height: 100%; line-height: 0;
   }
   .video-frame video {
     display: block; max-width: 100%; max-height: 100%;
@@ -143,26 +176,26 @@
     background: rgba(8,9,16,.82);
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    gap: 14px; border-radius: 6px; z-index: 30;
+    gap: 14px; z-index: 30;
   }
   .progress-overlay.hidden { display: none; }
   .spinner {
     width: 34px; height: 34px;
-    border: 3px solid var(--line);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin .85s linear infinite;
+    border: 3px solid var(--line); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin .85s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   .progress-label { font-size: 12px; color: var(--dim); font-family: var(--mono); }
 
-  /* ── パネル ── */
+  /* ── 右パネル ── */
   .panel {
     grid-row: 2; grid-column: 2;
     background: var(--panel);
     border-left: 1px solid var(--line);
-    overflow-y: auto; padding: 14px;
-    display: flex; flex-direction: column; gap: 0;
+    overflow-y: auto;  /* パネルは縦スクロール可能 */
+    padding: 14px;
+    display: flex; flex-direction: column;
+    min-height: 0;
   }
   .panel-section { margin-bottom: 16px; }
   .panel h3 {
@@ -174,7 +207,7 @@
   .tool-btn {
     background: var(--panel2); border: 1px solid var(--line);
     color: var(--text); border-radius: var(--r);
-    padding: 11px 6px; font-size: 11px; cursor: pointer;
+    padding: 10px 6px; font-size: 11px; cursor: pointer;
     display: flex; flex-direction: column; align-items: center; gap: 6px;
     transition: border-color .15s, background .15s, color .15s;
     font-family: var(--ff); line-height: 1;
@@ -186,15 +219,14 @@
   .tool-btn.active svg { stroke: var(--accent); }
   .tool-btn:disabled { opacity: .32; cursor: not-allowed; }
 
-  /* ── フォーム部品 ── */
+  /* ── フォーム ── */
   .field { margin-bottom: 10px; }
   .field label { display: block; font-size: 11px; color: var(--dim); margin-bottom: 5px; }
   input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
   input[type="text"], input[type="number"], select {
     width: 100%; background: var(--panel2); border: 1px solid var(--line);
     color: var(--text); border-radius: 6px; padding: 7px 9px;
-    font-size: 12px; font-family: var(--ff);
-    transition: border-color .15s;
+    font-size: 12px; font-family: var(--ff); transition: border-color .15s;
   }
   input[type="text"]:focus, input[type="number"]:focus, select:focus {
     outline: none; border-color: var(--accent);
@@ -211,8 +243,7 @@
   .pill {
     display: inline-block; background: var(--panel2);
     border-radius: 4px; padding: 1px 7px;
-    font-family: var(--mono); font-size: 10px; color: var(--accent);
-    margin-left: 5px;
+    font-family: var(--mono); font-size: 10px; color: var(--accent); margin-left: 5px;
   }
 
   /* ── ボタン ── */
@@ -249,7 +280,7 @@
   }
   .swatch:hover { transform: scale(1.2); border-color: #fff; }
 
-  /* ── オーバーレイチップ ── */
+  /* ── チップリスト ── */
   .chip-list { display: flex; flex-direction: column; gap: 5px; margin-bottom: 10px; }
   .chip {
     background: var(--panel2); border: 1px solid var(--line);
@@ -266,23 +297,20 @@
   /* ── バナー ── */
   .banner {
     background: var(--accent-a); border: 1px solid var(--accent);
-    border-radius: 6px; padding: 6px 9px;
-    font-size: 10px; color: var(--accent);
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 9px;
+    border-radius: 6px; padding: 6px 9px; font-size: 10px; color: var(--accent);
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px;
   }
   .banner button { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 10px; text-decoration: underline; }
 
-  /* ── ヒント ── */
   .hint { font-size: 10px; color: var(--dim); line-height: 1.55; margin-top: 6px; }
 
   /* ── クリップストリップ ── */
   .clip-strip {
     grid-row: 3; grid-column: 1/3;
-    display: flex; align-items: stretch; gap: 8px;
+    display: flex; align-items: center; gap: 8px;
     padding: 8px 14px;
     background: var(--panel); border-top: 1px solid var(--line);
-    overflow-x: auto;
+    overflow-x: auto; overflow-y: hidden;
   }
   .clip-item {
     flex: 0 0 auto; width: 90px;
@@ -295,13 +323,12 @@
   .clip-item img { width: 100%; height: 50px; object-fit: cover; display: block; opacity: .8; }
   .clip-num {
     position: absolute; top: 3px; left: 3px;
-    background: rgba(0,0,0,.6); color: #fff;
-    font-size: 9px; border-radius: 3px; padding: 1px 4px;
-    font-family: var(--mono);
+    background: rgba(0,0,0,.65); color: #fff;
+    font-size: 9px; border-radius: 3px; padding: 1px 4px; font-family: var(--mono);
   }
   .clip-del {
     position: absolute; top: 3px; right: 3px;
-    background: rgba(0,0,0,.6); color: #fff;
+    background: rgba(0,0,0,.65); color: #fff;
     border: none; border-radius: 3px;
     width: 16px; height: 16px; font-size: 10px;
     cursor: pointer; display: flex; align-items: center; justify-content: center;
@@ -316,29 +343,25 @@
     background: transparent; color: var(--dim);
     cursor: pointer; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 3px;
-    font-size: 10px; transition: border-color .15s, color .15s;
-    font-family: var(--ff);
+    font-size: 10px; transition: border-color .15s, color .15s; font-family: var(--ff);
   }
   .clip-add:hover { border-color: var(--accent); color: var(--accent); }
-  .clip-add .ic { font-size: 16px; }
 
   /* ── タイムライン ── */
   .timeline-wrap {
     grid-row: 4; grid-column: 1/3;
     background: var(--panel); border-top: 1px solid var(--line);
-    display: flex; flex-direction: column;
+    display: flex; flex-direction: column; min-height: 0;
   }
   .transport {
     display: flex; align-items: center; gap: 10px;
-    padding: 8px 14px; border-bottom: 1px solid var(--line);
-    flex-shrink: 0;
+    padding: 7px 14px; border-bottom: 1px solid var(--line); flex-shrink: 0;
+    flex-wrap: wrap;
   }
   .play-btn {
     width: 34px; height: 34px; border-radius: 50%;
     border: none; background: var(--accent); color: #fff;
-    font-size: 13px; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0;
+    font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
   .play-btn:hover { background: #ff7050; }
   .step-btn {
@@ -347,55 +370,43 @@
     font-size: 10px; font-family: var(--mono); cursor: pointer; flex-shrink: 0;
   }
   .step-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .time-display {
-    font-family: var(--mono); font-size: 12px; color: var(--dim); min-width: 100px;
-  }
+  .time-display { font-family: var(--mono); font-size: 12px; color: var(--dim); min-width: 95px; }
   .time-display strong { color: var(--text); }
   .transport-hint { font-size: 10px; color: var(--dim); }
 
   .timeline-scroll {
     flex: 1; overflow-x: auto; overflow-y: hidden;
-    padding: 10px 14px; min-height: 0;
+    padding: 8px 14px; min-height: 0;
   }
   .ruler {
     height: 16px; position: relative;
     font-family: var(--mono); font-size: 9px; color: var(--dim);
-    margin-bottom: 5px; min-width: 600px;
+    margin-bottom: 4px; min-width: 600px;
   }
   .ruler span { position: absolute; transform: translateX(-50%); }
   .timeline-track {
-    position: relative; height: 88px;
+    position: relative; height: 80px;
     background: var(--panel2); border-radius: 7px;
-    min-width: 600px; overflow: hidden;
-    border: 1px solid var(--line);
+    min-width: 600px; overflow: hidden; border: 1px solid var(--line);
   }
-  .thumb-strip {
-    position: absolute; inset: 0;
-    display: flex; pointer-events: none;
-  }
-  .thumb-strip img { height: 100%; flex: 1; object-fit: cover; opacity: .45; }
+  .thumb-strip { position: absolute; inset: 0; display: flex; pointer-events: none; }
+  .thumb-strip img { height: 100%; flex: 1; object-fit: cover; opacity: .4; }
 
-  /* マーカー */
   .marker {
-    position: absolute; height: 14px;
-    border-radius: 4px; font-size: 8px;
+    position: absolute; height: 14px; border-radius: 4px; font-size: 8px;
     display: flex; align-items: center; padding: 0 5px;
-    white-space: nowrap; overflow: hidden;
-    cursor: pointer; border: 1px solid transparent;
-    transition: opacity .12s, border-color .12s; z-index: 2;
+    white-space: nowrap; overflow: hidden; cursor: pointer;
+    border: 1px solid transparent; transition: opacity .12s; z-index: 2;
   }
-  .marker-text { top: 5px; background: var(--ok); color: #073320; }
-  .marker-speed { top: 22px; background: var(--purple); color: #12124a; }
+  .marker-text  { top: 5px;  background: var(--ok);     color: #073320; }
+  .marker-speed { top: 23px; background: var(--purple);  color: #12124a; }
   .marker:hover { opacity: 1; }
   .marker.sel { border-color: #fff; z-index: 5; }
 
-  /* トリム */
   .trim-region {
     position: absolute; top: 0; bottom: 0;
     background: rgba(255,92,56,.1);
-    border-left: 3px solid var(--accent);
-    border-right: 3px solid var(--accent);
-    z-index: 3;
+    border-left: 3px solid var(--accent); border-right: 3px solid var(--accent); z-index: 3;
   }
   .trim-handle {
     position: absolute; top: 0; bottom: 0;
@@ -405,11 +416,9 @@
   .trim-handle.left { left: -7px; }
   .trim-handle.right { right: -7px; }
   .trim-handle::after {
-    content: ""; width: 4px; height: 34px;
+    content: ""; width: 4px; height: 32px;
     background: var(--accent); border-radius: 3px;
   }
-
-  /* 範囲選択 */
   .range-select {
     position: absolute; top: 0; bottom: 0;
     background: rgba(255,255,255,.15);
@@ -417,8 +426,6 @@
     border-right: 2px dashed rgba(255,255,255,.7);
     z-index: 6; pointer-events: none;
   }
-
-  /* 再生ヘッド */
   .playhead {
     position: absolute; top: -4px; bottom: 0;
     width: 2px; background: #fff; z-index: 7; pointer-events: none;
@@ -428,14 +435,10 @@
     width: 12px; height: 8px; background: #fff; border-radius: 2px;
   }
 
-  /* ダウンロードリンク */
-  a.dl-link {
-    display: block; text-align: center; margin-top: 8px;
-    font-size: 11px; color: var(--ok); text-decoration: underline;
-  }
+  a.dl-link { display: block; text-align: center; margin-top: 8px; font-size: 11px; color: var(--ok); text-decoration: underline; }
   .export-error { font-size: 11px; color: #ff6b6b; margin-top: 8px; line-height: 1.5; }
 
-  ::-webkit-scrollbar { width: 7px; height: 7px; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
 </style>
@@ -457,13 +460,18 @@
     </div>
   </header>
 
-  <div class="stage" id="stage">
+  <!-- ステージ：初期は welcome-mode クラスでスクロール可能 -->
+  <div class="stage welcome-mode" id="stage">
 
-    <!-- ── 初期画面 ── -->
+    <!-- 初期画面 -->
     <div class="welcome" id="emptyState">
       <div class="welcome-icon">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="23 7 16 12 23 17 23 7"/>
+          <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+        </svg>
       </div>
+
       <div>
         <h1>動画をアップロードして<br>編集を始めましょう</h1>
         <p class="welcome-desc" style="margin-top:8px;">
@@ -472,45 +480,45 @@
         </p>
       </div>
 
+      <!-- ドロップゾーン（クリック全体でもファイル選択ダイアログが開く） -->
       <div class="drop-zone" id="dropZone">
         <span class="drop-zone-ico">📁</span>
         <span class="drop-zone-title">ここにファイルをドラッグ＆ドロップ</span>
         <span class="drop-zone-sub">または</span>
-        <button class="btn btn-primary" id="uploadBtn" type="button" style="width:160px;margin-top:2px;">
-          ファイルを選択
-        </button>
-        <span class="drop-zone-sub" style="margin-top:4px;">mp4 / mov / webm など複数選択可</span>
+        <!-- ボタンは zone 内に視覚的に置くが、JS側でクリック伝播をコントロール -->
+        <button class="upload-btn" id="uploadBtn" type="button">ファイルを選択</button>
+        <span class="drop-zone-sub">mp4 / mov / webm など複数選択可</span>
       </div>
 
       <div class="feature-grid">
         <div class="feature-card">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
           トリミング・カット
         </div>
         <div class="feature-card">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
           字幕・テキスト
         </div>
         <div class="feature-card">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           話者写真
         </div>
         <div class="feature-card">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           速度変更
         </div>
         <div class="feature-card">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
           色・明るさ
         </div>
         <div class="feature-card">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-          複数クリップ結合
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          クリップ結合
         </div>
       </div>
     </div>
 
-    <!-- ── 動画プレビュー ── -->
+    <!-- 動画プレビュー（初期は非表示） -->
     <div class="video-frame" id="videoFrame" hidden>
       <video id="previewVideo" controls></video>
       <button class="fs-btn" id="fullscreenBtn" title="全画面">⤢</button>
@@ -520,77 +528,76 @@
       <div class="spinner"></div>
       <div class="progress-label" id="progressLabel">準備中…</div>
     </div>
-
   </div>
 
-  <!-- ── 右パネル ── -->
+  <!-- 右パネル -->
   <div class="panel">
     <div class="panel-section">
       <h3>編集ツール</h3>
       <div class="tool-grid">
         <button class="tool-btn" data-tool="trim" disabled>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
           トリミング
         </button>
         <button class="tool-btn" data-tool="text" disabled>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
           テキスト
         </button>
         <button class="tool-btn" data-tool="image" disabled>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           話者写真
         </button>
         <button class="tool-btn" data-tool="speed" disabled>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           速度
         </button>
         <button class="tool-btn" data-tool="adjust" disabled>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
           色調整
         </button>
         <button class="tool-btn" data-tool="volume" disabled>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
           音量
         </button>
         <button class="tool-btn" data-tool="rotate" disabled>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
           回転
         </button>
       </div>
     </div>
-
     <div id="toolOptions"></div>
     <div id="exportInfo" class="hint" style="margin-top:auto;padding-top:10px;"></div>
   </div>
 
-  <!-- ── クリップストリップ ── -->
+  <!-- クリップストリップ -->
   <div class="clip-strip" id="clipStrip"></div>
 
-  <!-- ── タイムライン ── -->
+  <!-- タイムライン -->
   <div class="timeline-wrap">
     <div class="transport">
       <button class="play-btn" id="playBtn">▶</button>
       <button class="step-btn" id="stepBack">◀ 0.1s</button>
       <button class="step-btn" id="stepFwd">0.1s ▶</button>
       <div class="time-display"><strong id="curTime">00:00.0</strong> / <span id="totalTime">00:00.0</span></div>
-      <div class="transport-hint">タイムラインをドラッグで字幕範囲を選択 ／ マーカーをクリックで編集</div>
+      <div class="transport-hint">タイムラインをドラッグで字幕範囲を選択 / マーカーをクリックで編集</div>
     </div>
     <div class="timeline-scroll">
       <div class="ruler" id="ruler"></div>
       <div class="timeline-track" id="timelineTrack">
-        <div class="thumb-strip"  id="thumbStrip"></div>
-        <div class="trim-region"  id="trimRegion">
+        <div class="thumb-strip" id="thumbStrip"></div>
+        <div class="trim-region" id="trimRegion">
           <div class="trim-handle left"  id="handleLeft"></div>
           <div class="trim-handle right" id="handleRight"></div>
         </div>
         <div class="range-select" id="rangeSelect" hidden></div>
-        <div class="playhead"     id="playhead" style="left:0"></div>
+        <div class="playhead" id="playhead" style="left:0"></div>
       </div>
     </div>
   </div>
 
 </div>
 
+<!-- ファイル入力（hidden, appの外に置くことでレイアウトに影響しない） -->
 <input type="file" id="fileInput"    accept="video/*" multiple hidden>
 <input type="file" id="addClipInput" accept="video/*" multiple hidden>
 <input type="file" id="imageInput"   accept="image/*"          hidden>
