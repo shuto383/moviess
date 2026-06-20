@@ -97,8 +97,9 @@
   .welcome-desc { font-size: 12px; color: var(--dim); line-height: 1.75; }
   .welcome-desc strong { color: var(--ok); font-weight: 600; }
 
-  /* ドロップゾーン — クリックは zone 全体でもボタンでも動く */
+  /* ドロップゾーン — label要素。内部のinput[type=file]がクリック・ドロップを直接処理する */
   .drop-zone {
+    position: relative;
     width: 100%;
     border: 2px dashed var(--line);
     border-radius: 14px;
@@ -114,7 +115,20 @@
   .drop-zone-title { font-size: 14px; font-weight: 600; }
   .drop-zone-sub { font-size: 11px; color: var(--dim); }
 
-  /* ファイル選択ボタン — zone の中にあるが pointer-events だけ独立 */
+  /* input[type=file]自体をゾーン全面に重ねて透明化。
+     これによりクリック・ドラッグ&ドロップをブラウザがネイティブに処理する。
+     JSのclick()呼び出しに依存しないため、ポップアップブロックの影響を受けない。 */
+  .file-input-native {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 2;
+  }
+
+  /* ファイル選択ボタン（見た目のみ。実際のクリックはinputが受け取る） */
   .upload-btn {
     margin-top: 2px;
     padding: 10px 28px;
@@ -122,28 +136,9 @@
     border: none; border-radius: var(--r);
     font-size: 13px; font-weight: 700;
     font-family: var(--ff);
-    cursor: pointer;
-    transition: background .15s, transform .1s;
-    pointer-events: auto; /* zone のクリックとは別に機能 */
+    display: inline-block;
+    pointer-events: none; /* クリックは親labelのinputが処理 */
   }
-  .upload-btn:hover { background: #ff7050; }
-  .upload-btn:active { transform: scale(.97); }
-
-  .feature-grid {
-    display: grid; grid-template-columns: 1fr 1fr 1fr;
-    gap: 8px; width: 100%;
-  }
-  .feature-card {
-    background: var(--panel); border: 1px solid var(--line);
-    border-radius: 10px; padding: 12px 8px;
-    font-size: 10px; color: var(--dim); text-align: center;
-    line-height: 1.5; display: flex; flex-direction: column;
-    align-items: center; gap: 6px;
-    transition: border-color .15s, color .15s;
-  }
-  .feature-card:hover { border-color: var(--accent); color: var(--text); }
-  .feature-card svg { stroke: var(--dim); transition: stroke .15s; }
-  .feature-card:hover svg { stroke: var(--accent); }
 
   /* ── 動画フレーム ── */
   .video-frame {
@@ -466,9 +461,10 @@
     <!-- 初期画面 -->
     <div class="welcome" id="emptyState">
       <div class="welcome-icon">
-        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="23 7 16 12 23 17 23 7"/>
-          <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
       </div>
 
@@ -480,42 +476,15 @@
         </p>
       </div>
 
-      <!-- ドロップゾーン（クリック全体でもファイル選択ダイアログが開く） -->
-      <div class="drop-zone" id="dropZone">
+      <!-- ドロップゾーン: input[type=file]を直接内包し、ブラウザネイティブのクリック/ドラッグに任せる -->
+      <label class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept="video/*" multiple class="file-input-native">
         <span class="drop-zone-ico">📁</span>
         <span class="drop-zone-title">ここにファイルをドラッグ＆ドロップ</span>
         <span class="drop-zone-sub">または</span>
-        <!-- ボタンは zone 内に視覚的に置くが、JS側でクリック伝播をコントロール -->
-        <button class="upload-btn" id="uploadBtn" type="button">ファイルを選択</button>
+        <span class="upload-btn">ファイルを選択</span>
         <span class="drop-zone-sub">mp4 / mov / webm など複数選択可</span>
-      </div>
-
-      <div class="feature-grid">
-        <div class="feature-card">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
-          トリミング・カット
-        </div>
-        <div class="feature-card">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
-          字幕・テキスト
-        </div>
-        <div class="feature-card">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          話者写真
-        </div>
-        <div class="feature-card">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          速度変更
-        </div>
-        <div class="feature-card">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
-          色・明るさ
-        </div>
-        <div class="feature-card">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-          クリップ結合
-        </div>
-      </div>
+      </label>
     </div>
 
     <!-- 動画プレビュー（初期は非表示） -->
@@ -598,7 +567,6 @@
 </div>
 
 <!-- ファイル入力（hidden, appの外に置くことでレイアウトに影響しない） -->
-<input type="file" id="fileInput"    accept="video/*" multiple hidden>
 <input type="file" id="addClipInput" accept="video/*" multiple hidden>
 <input type="file" id="imageInput"   accept="image/*"          hidden>
 

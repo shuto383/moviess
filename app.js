@@ -38,7 +38,6 @@ const videoFrame   = $('videoFrame');
 const emptyState   = $('emptyState');
 const dropZone     = $('dropZone');
 const fileInput    = $('fileInput');
-const uploadBtn    = $('uploadBtn');
 const addClipInput = $('addClipInput');
 const imageInput   = $('imageInput');
 const exportBtn    = $('exportBtn');
@@ -65,21 +64,8 @@ const stepFwd      = $('stepFwd');
 const toolButtons  = document.querySelectorAll('.tool-btn');
 
 // ── ファイル読み込み ─────────────────────────────────────────
-// uploadBtn と dropZone のクリックイベントを完全に分離
-// uploadBtn は直接 fileInput.click() を呼ぶ
-// dropZone は uploadBtn/fileInput 以外の部分がクリックされたとき fileInput.click()
-uploadBtn.addEventListener('click', e => {
-  e.preventDefault();
-  e.stopPropagation();
-  fileInput.click();
-});
-
-dropZone.addEventListener('click', e => {
-  // uploadBtn(またはその子)がクリック元なら dropZone 側は何もしない
-  if (uploadBtn.contains(e.target) || e.target === uploadBtn) return;
-  fileInput.click();
-});
-
+// fileInput は dropZone(label) 内に直接配置され、ブラウザがクリック・
+// ドラッグ＆ドロップをネイティブに処理する。JS側でclick()は一切呼ばない。
 ['dragover','dragenter'].forEach(ev =>
   dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('over'); }));
 ['dragleave','drop'].forEach(ev =>
@@ -90,13 +76,13 @@ dropZone.addEventListener('drop', e => {
 });
 fileInput.addEventListener('change', e => {
   const fs = [...e.target.files];
-  fileInput.value = ''; // 先にリセット（同じファイルを再選択できるように）
   if (fs.length) addClips(fs, true);
+  fileInput.value = ''; // 同じファイルを再選択できるよう処理後にリセット
 });
 addClipInput.addEventListener('change', e => {
   const fs = [...e.target.files];
-  addClipInput.value = '';
   if (fs.length) addClips(fs, false);
+  addClipInput.value = '';
 });
 
 newFileBtn.addEventListener('click', resetProject);
