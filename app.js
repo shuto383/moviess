@@ -1,5 +1,5 @@
 // ============================================================
-// カットルーム — app.js (clean rewrite)
+// Cut Room — app.js (clean rewrite)
 // ============================================================
 const { FFmpeg }    = FFmpegWASM;
 const { fetchFile, toBlobURL } = FFmpegUtil;
@@ -38,8 +38,6 @@ const videoFrame   = $('videoFrame');
 const emptyState   = $('emptyState');
 const dropZone     = $('dropZone');
 const fileInput    = $('fileInput');
-const addClipInput = $('addClipInput');
-const imageInput   = $('imageInput');
 const exportBtn    = $('exportBtn');
 const newFileBtn   = $('newFileBtn');
 const fullscreenBtn= $('fullscreenBtn');
@@ -66,24 +64,33 @@ const toolButtons  = document.querySelectorAll('.tool-btn');
 // ── ファイル読み込み ─────────────────────────────────────────
 // fileInput は dropZone(label) 内に直接配置され、ブラウザがクリック・
 // ドラッグ＆ドロップをネイティブに処理する。JS側でclick()は一切呼ばない。
+// クリップ追加用のinputも同様にrenderClipStrip内で動的にlabelへ内包される。
 ['dragover','dragenter'].forEach(ev =>
   dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('over'); }));
 ['dragleave','drop'].forEach(ev =>
   dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('over'); }));
 dropZone.addEventListener('drop', e => {
   const fs = [...e.dataTransfer.files].filter(f => f.type.startsWith('video/'));
-  if (fs.length) addClips(fs, true);
+  if (fs.length) handleAddClips(fs, true);
 });
 fileInput.addEventListener('change', e => {
   const fs = [...e.target.files];
-  if (fs.length) addClips(fs, true);
-  fileInput.value = ''; // 同じファイルを再選択できるよう処理後にリセット
+  handleAddClips(fs, true);
+  // value のリセットは次のtickで（一部ブラウザでchange直後の同期リセットが
+  // 後続処理に影響するのを避けるため）
+  setTimeout(() => { fileInput.value = ''; }, 0);
 });
-addClipInput.addEventListener('change', e => {
-  const fs = [...e.target.files];
-  if (fs.length) addClips(fs, false);
-  addClipInput.value = '';
-});
+
+// addClips のラッパー: エラーが起きてもサイレントに失敗しないようにする
+async function handleAddClips(files, isFirst) {
+  if (!files.length) return;
+  try {
+    await addClips(files, isFirst);
+  } catch (err) {
+    console.error('動画の読み込みに失敗しました:', err);
+    alert('動画の読み込みに失敗しました。別の形式（mp4など）でお試しください。\n詳細: ' + err.message);
+  }
+}
 
 newFileBtn.addEventListener('click', resetProject);
 
@@ -214,13 +221,7 @@ function selectClip(idx) {
   videoDuration = clip.duration;
   selectedMarker = null; pendingRange = null;
 
-  videoEl.src = clip.url;
-  videoEl.playbackRate = state.speed;
-  videoEl.volume = Math.min(state.volume, 1);
-  videoEl.style.transform = `rotate(${state.rotation}deg)`;
-  applyFilterCSS();
-
-  videoEl.addEventListener('loadedmetadata', () => {
+  const onReady = () => {
     videoDuration = clip.duration;
     totalTimeEl.textContent = fmt(videoDuration);
     buildRuler();
@@ -228,7 +229,24 @@ function selectClip(idx) {
     renderThumbStrip(clip);
     renderClipStrip();
     if (activeTool) renderToolOptions(activeTool);
-  }, { once: true });
+  };
+
+  // src切り替え前にリスナーを退避（多重登録防止のため一旦video要素を作り直さず、onceで管理）
+  const handler = () => { onReady(); };
+  videoEl.addEventListener('loadedmetadata', handler, { once: true });
+
+  videoEl.src = clip.url;
+  videoEl.playbackRate = state.speed;
+  videoEl.volume = Math.min(state.volume, 1);
+  videoEl.style.transform = `rotate(${state.rotation}deg)`;
+  applyFilterCSS();
+  videoEl.load(); // 明示的にロードを開始（一部ブラウザでsrc再代入だけだとイベントが発火しないことがある）
+
+  // 既にメタデータ取得済み（readyState >= 1）なら即座に反映（loadedmetadataが発火しないケースの保険）
+  if (videoEl.readyState >= 1 && videoEl.duration > 0) {
+    videoEl.removeEventListener('loadedmetadata', handler);
+    onReady();
+  }
 }
 
 function applyFilterCSS() {
@@ -275,11 +293,17 @@ function renderClipStrip() {
     clipStrip.appendChild(item);
   });
 
-  const add = document.createElement('button');
+  const add = document.createElement('label');
   add.className = 'clip-add';
-  add.innerHTML = '<span class="ic">＋</span>追加';
-  add.addEventListener('click', () => addClipInput.click());
+  add.innerHTML = '<input type="file" accept="video/*" multiple class="file-input-native" id="clipAddInputDyn"><span class="ic">＋</span>追加';
   clipStrip.appendChild(add);
+  // 動的生成のinputにイベントを設定
+  const dynInput = add.querySelector('input');
+  dynInput.addEventListener('change', e => {
+    const fs = [...e.target.files];
+    handleAddClips(fs, false);
+    setTimeout(() => { dynInput.value = ''; }, 0);
+  });
 }
 
 function renderThumbStrip(clip) {
@@ -725,9 +749,10 @@ function imageUI() {
   ${imgPreview}
   <div class="field"><label>名前（識別用）</label>
     <input type="text" id="imgName" value="${esc(v.name)}" placeholder="例: 田中さん"></div>
-  <button class="btn btn-ghost btn-block" id="imgUpload" style="margin-bottom:10px;">
+  <label class="file-upload-btn" id="imgUploadLabel">
+    <input type="file" id="imgUpload" accept="image/*" class="file-input-native">
     📁 ${ed ? '写真を変更' : '写真を選択（jpg/png）'}
-  </button>
+  </label>
   <div class="row">
     <div class="field"><label>開始</label>
       <div class="with-btn">
@@ -748,7 +773,7 @@ function imageUI() {
     <input type="range" id="imgW" min="5" max="50" step=".5" value="${v.widthPct}"></div>
   ${ed
     ? `<div class="btn-row"><button class="btn btn-primary" id="imgSave">更新</button><button class="btn btn-danger" id="imgDel">削除</button></div>`
-    : `<button class="btn btn-primary btn-block" id="imgSave" ${ed?.dataUrl||''?'':'disabled'}>写真を追加</button>`}
+    : `<button class="btn btn-primary btn-block" id="imgSave" ${ed?.dataUrl||_pendingImage?'':'disabled'}>写真を追加</button>`}
   <p class="hint">動画プレビュー上の写真をドラッグして移動、端をドラッグしてサイズを変更できます。</p>`;
 }
 
@@ -772,26 +797,34 @@ function bindImage() {
     refreshOverlays();
   };
 
-  $('imgUpload')?.addEventListener('click', () => imageInput.click());
-  imageInput.onchange = async e => {
+  // 写真アップロード: labelに内包されたinput[type=file]がネイティブに処理する
+  $('imgUpload')?.addEventListener('change', async e => {
     const file = e.target.files[0]; if (!file) return;
-    const dataUrl = await fileToDataUrl(file);
-    const aspect  = await getAspect(dataUrl);
-    _pendingImage = { dataUrl, file, aspect };
-    imageInput.value = '';
-    const saveBtn = $('imgSave');
-    if (saveBtn) saveBtn.disabled = false;
-    // 小プレビューを更新
-    const prev = document.querySelector('#toolOptions img');
-    if (prev) { prev.src = dataUrl; }
-    else {
-      const img = document.createElement('img');
-      img.src = dataUrl;
-      img.style.cssText='width:60px;height:60px;object-fit:cover;border-radius:6px;margin-bottom:8px;';
-      $('imgUpload').insertAdjacentElement('beforebegin', img);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      const aspect  = await getAspect(dataUrl);
+      _pendingImage = { dataUrl, file, aspect };
+      const saveBtn = $('imgSave');
+      if (saveBtn) saveBtn.disabled = false;
+      // 小プレビューを更新（既存があれば差し替え、なければ挿入）
+      let prev = document.querySelector('#toolOptions .img-overlay-preview');
+      if (prev) {
+        prev.src = dataUrl;
+      } else {
+        const img = document.createElement('img');
+        img.src = dataUrl;
+        img.className = 'img-overlay-preview';
+        img.style.cssText='width:60px;height:60px;object-fit:cover;border-radius:6px;margin-bottom:8px;display:block;';
+        $('imgUploadLabel').insertAdjacentElement('beforebegin', img);
+      }
+      refreshOverlays();
+    } catch (err) {
+      console.error('画像の読み込みに失敗しました:', err);
+      alert('画像の読み込みに失敗しました。別の画像でお試しください。');
+    } finally {
+      e.target.value = '';
     }
-    refreshOverlays();
-  };
+  });
 
   $('imgSnow')?.addEventListener('click',()=>{ $('imgS').value=fmt(videoEl.currentTime); });
   $('imgEnow')?.addEventListener('click',()=>{ $('imgE').value=fmt(videoEl.currentTime); });
