@@ -22,6 +22,14 @@
   }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+  /* hidden属性は他のどのdisplay指定よりも常に優先する。
+     .video-frame { display:flex } のようなクラスのdisplay指定が
+     [hidden] のデフォルトスタイルより詳細度で勝ってしまい、
+     hidden属性が無視されて要素が表示され続ける問題を防ぐための保険。 */
+  [hidden] {
+    display: none !important;
+  }
+
   html, body {
     height: 100%;
     background: var(--bg);
@@ -484,7 +492,7 @@
       </div>
     </div>
     <div class="hdr-right">
-      <button class="btn btn-ghost" id="newFileBtn">リセット</button>
+      <button class="btn btn-ghost" id="newFileBtn" disabled>🗑 動画を削除</button>
       <button class="btn btn-primary" id="exportBtn" disabled>書き出し</button>
     </div>
   </header>

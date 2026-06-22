@@ -60,6 +60,25 @@ const totalTimeEl  = $('totalTime');
 const stepBack     = $('stepBack');
 const stepFwd      = $('stepFwd');
 const toolButtons  = document.querySelectorAll('.tool-btn');
+const stageEl      = $('stage');
+
+// 初期画面(ファイル選択UI) ⇔ 動画プレビューの表示切り替えを一元管理。
+// hidden属性とstyle.displayの両方を設定することで、CSSの詳細度競合による
+// 表示崩れ（[hidden]が他のdisplay指定に負けて要素が消えない問題）を確実に防ぐ。
+function showWelcomeUI() {
+  emptyState.hidden = false;
+  emptyState.style.display = '';
+  videoFrame.hidden = true;
+  videoFrame.style.display = 'none';
+  stageEl.classList.add('welcome-mode');
+}
+function showVideoUI() {
+  emptyState.hidden = true;
+  emptyState.style.display = 'none';
+  videoFrame.hidden = false;
+  videoFrame.style.display = 'flex';
+  stageEl.classList.remove('welcome-mode');
+}
 
 // ── ファイル読み込み ─────────────────────────────────────────
 // fileInput は dropZone(label) 内に直接配置され、ブラウザがクリック・
@@ -92,38 +111,21 @@ async function handleAddClips(files, isFirst) {
   }
 }
 
-newFileBtn.addEventListener('click', resetProject);
+newFileBtn.addEventListener('click', () => {
+  if (!clips.length) return; // 動画がなければ何もしない（保険）
+  const ok = confirm('読み込んだ動画と編集内容をすべて削除します。よろしいですか？');
+  if (ok) resetProject();
+});
 
+// 「動画を削除」ボタン用（確認ダイアログは呼び出し元で出す）
 function resetProject() {
-  clips = []; activeClipIdx = -1;
-  state = mkState(); videoDuration = 0;
-  selectedMarker = null; pendingRange = null;
-  videoEl.removeAttribute('src');
-  videoFrame.hidden = true;
-  emptyState.hidden = false;
-  // stage を初期画面モード（スクロール可能）に戻す
-  const stageEl = document.getElementById('stage');
-  stageEl.classList.add('welcome-mode');
-  exportBtn.disabled = true;
-  toolButtons.forEach(b => (b.disabled = true));
-  activeTool = null;
-  toolOptions.innerHTML = '';
-  toolButtons.forEach(b => b.classList.remove('active'));
-  clipStrip.innerHTML = '';
-  exportInfo.innerHTML = '';
-  curTimeEl.textContent = '00:00.0';
-  totalTimeEl.textContent = '00:00.0';
-  ruler.innerHTML = '';
-  thumbStrip.innerHTML = '';
-  // 既存オーバーレイ要素の削除
-  Object.keys(overlayEls).forEach(k => {
-    overlayEls[k].remove();
-    delete overlayEls[k];
-  });
+  clearAllClipsSilently();
 }
 
 async function addClips(files, isFirst) {
   if (isFirst) {
+    // 既存クリップがあれば破棄してメモリを解放してから置き換える
+    clips.forEach(c => { try { URL.revokeObjectURL(c.url); } catch (e) {} });
     clips = []; activeClipIdx = -1;
   }
 
@@ -150,11 +152,10 @@ async function addClips(files, isFirst) {
   clips.push(...newClips);
 
   // UIを動画表示モードに切り替え（クリップが存在する限り常にこの状態であるべき）
-  emptyState.hidden = true;
-  videoFrame.hidden = false;
+  showVideoUI();
   exportBtn.disabled = false;
+  newFileBtn.disabled = false;
   toolButtons.forEach(b => (b.disabled = false));
-  document.getElementById('stage').classList.remove('welcome-mode');
 
   renderClipStrip();
   if (activeClipIdx === -1 && clips.length) selectClip(0);
@@ -320,11 +321,49 @@ function reorderClips(from, to) {
 }
 
 function removeClip(idx) {
-  clips.splice(idx, 1);
-  if (!clips.length) { resetProject(); return; }
+  const [removed] = clips.splice(idx, 1);
+  if (removed) { try { URL.revokeObjectURL(removed.url); } catch (e) {} }
+
+  if (!clips.length) {
+    // 個別削除で最後の1本が消えたときは確認なしで初期状態に戻す
+    clearAllClipsSilently();
+    return;
+  }
   if (activeClipIdx >= clips.length) activeClipIdx = clips.length-1;
   if (activeClipIdx === idx) selectClip(Math.min(idx, clips.length-1));
   else { if (idx < activeClipIdx) activeClipIdx--; renderClipStrip(); updateExportInfo(); }
+}
+
+// 確認ダイアログなしで全クリップをクリアする内部用関数
+// （個別の✕ボタンで最後の1本を消したときなど、既に削除意思が明確な場面で使用）
+function clearAllClipsSilently() {
+  clips.forEach(c => { try { URL.revokeObjectURL(c.url); } catch (e) {} });
+  clips = []; activeClipIdx = -1;
+  state = mkState(); videoDuration = 0;
+  selectedMarker = null; pendingRange = null;
+
+  videoEl.pause();
+  videoEl.removeAttribute('src');
+  videoEl.load();
+
+  showWelcomeUI();
+
+  exportBtn.disabled = true;
+  newFileBtn.disabled = true;
+  toolButtons.forEach(b => (b.disabled = true));
+  activeTool = null;
+  toolOptions.innerHTML = '';
+  toolButtons.forEach(b => b.classList.remove('active'));
+  clipStrip.innerHTML = '';
+  exportInfo.innerHTML = '';
+  curTimeEl.textContent = '00:00.0';
+  totalTimeEl.textContent = '00:00.0';
+  ruler.innerHTML = '';
+  thumbStrip.innerHTML = '';
+  Object.keys(overlayEls).forEach(k => {
+    overlayEls[k].remove();
+    delete overlayEls[k];
+  });
 }
 
 // ── 再生 ────────────────────────────────────────────────────
@@ -1484,3 +1523,21 @@ function getAspect(dataUrl){
     img.src=dataUrl;
   });
 }
+
+// ── 初期化の確実化 ───────────────────────────────────────────
+// ブラウザの「戻る」操作等でページがbfcache(back-forward cache)から
+// 復元された場合、JSの変数は前回の状態のままだが video.src 等のDOM状態が
+// 不整合になることがあるため、pageshowで必ず初期状態を強制する。
+// 通常のロード時（persisted=false）にも一度実行し、確実に「動画なし」から始まるようにする。
+window.addEventListener('pageshow', () => {
+  if (!clips.length) {
+    // 念のためDOM側だけでも確実に初期状態へ
+    showWelcomeUI();
+    exportBtn.disabled = true;
+    newFileBtn.disabled = true;
+    toolButtons.forEach(b => (b.disabled = true));
+  }
+});
+
+// ページ読み込み完了時にも明示的に初期状態を強制（保険）
+showWelcomeUI();
