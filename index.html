@@ -65,11 +65,13 @@
   /* ── ステージ（動画プレビューエリア） ── */
   .stage {
     grid-row: 2; grid-column: 1;
+    width: 100%; height: 100%;
     display: flex; align-items: center; justify-content: center;
     background: #080910;
     position: relative;
     overflow: hidden; /* 動画表示時はclip */
     min-height: 0;
+    min-width: 0;
   }
   /* 初期画面表示時はスクロール許可 */
   .stage.welcome-mode {
@@ -140,19 +142,50 @@
     pointer-events: none; /* クリックは親labelのinputが処理 */
   }
 
+  /* 話者写真などパネル内の汎用ファイル選択ボタン（label方式） */
+  .file-upload-btn {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+    width: 100%;
+    background: var(--panel2); border: 1px solid var(--line);
+    color: var(--text); border-radius: var(--r);
+    padding: 9px 14px; font-size: 12px; font-weight: 600;
+    font-family: var(--ff); cursor: pointer;
+    margin-bottom: 10px;
+    transition: border-color .15s, color .15s;
+  }
+  .file-upload-btn:hover { border-color: var(--accent); color: var(--accent); }
+
   /* ── 動画フレーム ── */
+  /* stage いっぱいに広がるコンテナとして確保し、内部の video は
+     object-fit:contain で「中央に・アスペクト比を保ったまま最大」表示する。
+     max-width/max-height だけに頼らず width/height:100% を明示することで、
+     ブラウザによって video の intrinsic size が反映されず縮退する問題を防ぐ。 */
   .video-frame {
-    position: relative; display: inline-flex;
-    max-width: 100%; max-height: 100%; line-height: 0;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
   }
   .video-frame video {
-    display: block; max-width: 100%; max-height: 100%;
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
     border-radius: 6px;
     box-shadow: 0 16px 48px rgba(0,0,0,.55);
     background: #000;
   }
-  .video-frame:fullscreen { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#000; }
-  .video-frame:fullscreen video { max-width:100vw; max-height:100vh; border-radius:0; box-shadow:none; }
+  .video-frame:fullscreen {
+    width: 100%; height: 100%; padding: 0;
+    display: flex; align-items: center; justify-content: center; background: #000;
+  }
+  .video-frame:fullscreen video { border-radius: 0; box-shadow: none; }
   .fs-btn {
     position: absolute; top: 8px; right: 8px;
     width: 30px; height: 30px; border-radius: 6px;
@@ -333,6 +366,7 @@
   .clip-del:hover { background: var(--accent); }
   .clip-label { font-size: 9px; padding: 3px 5px; color: var(--dim); font-family: var(--mono); }
   .clip-add {
+    position: relative;
     flex: 0 0 auto; width: 90px; height: 72px;
     border: 2px dashed var(--line); border-radius: 7px;
     background: transparent; color: var(--dim);
@@ -566,9 +600,7 @@
 
 </div>
 
-<!-- ファイル入力（hidden, appの外に置くことでレイアウトに影響しない） -->
-<input type="file" id="addClipInput" accept="video/*" multiple hidden>
-<input type="file" id="imageInput"   accept="image/*"          hidden>
+<!-- ファイル入力はそれぞれの label 内に直接配置されるため、ここでのグローバル定義は不要 -->
 
 <script src="vendor/ffmpeg/ffmpeg.js"></script>
 <script src="vendor/util/ffmpeg-util.js"></script>

@@ -1,5 +1,5 @@
 // ============================================================
-// Cut Room — app.js (clean rewrite)
+// カットルーム — app.js (clean rewrite)
 // ============================================================
 const { FFmpeg }    = FFmpegWASM;
 const { fetchFile, toBlobURL } = FFmpegUtil;
@@ -149,16 +149,12 @@ async function addClips(files, isFirst) {
 
   clips.push(...newClips);
 
-  // UIを表示状態に切り替え（初回 or 追加）
-  if (emptyState.hidden === false) {
-    emptyState.hidden = true;
-    videoFrame.hidden = false;
-    exportBtn.disabled = false;
-    toolButtons.forEach(b => (b.disabled = false));
-    // stage を動画モードに切り替え（overflow:hidden）
-    const stageEl = document.getElementById('stage');
-    stageEl.classList.remove('welcome-mode');
-  }
+  // UIを動画表示モードに切り替え（クリップが存在する限り常にこの状態であるべき）
+  emptyState.hidden = true;
+  videoFrame.hidden = false;
+  exportBtn.disabled = false;
+  toolButtons.forEach(b => (b.disabled = false));
+  document.getElementById('stage').classList.remove('welcome-mode');
 
   renderClipStrip();
   if (activeClipIdx === -1 && clips.length) selectClip(0);
